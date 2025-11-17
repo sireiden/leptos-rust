@@ -14,11 +14,14 @@ use std::time::Duration;
 use serde::Serialize;
 use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
 
+mod live_data;
+
 #[derive(Clone)]
 struct AppState {
     leptos_options: LeptosOptions,
     tx: broadcast::Sender<String>,
     sleep_ms: Arc<AtomicU64>, // controls update frequency for all streams
+    use_live_data: bool,      // toggle between simulated and real data
 }
 
 #[tokio::main]
@@ -33,10 +36,26 @@ async fn main() {
     // tunable: message frequency in milliseconds (lower = faster updates)
     let sleep_ms = Arc::new(AtomicU64::new(50)); // default 50ms = ~20 Hz
 
-    // ========== Realistic high-frequency live data streams ==========
-    // We'll simulate 3 concurrent streams that fire at high rates to stress the frontend
+    // Check if we should use live data (environment variable or command line arg)
+    let use_live_data = std::env::var("USE_LIVE_DATA").unwrap_or_default() == "true" ||
+                        std::env::args().any(|arg| arg == "--live-data");
 
-    // Stream 1: Market price ticks (20-60 Hz) - simulates real-time price updates
+    if use_live_data {
+        println!("🔥 Starting LIVE data streams from Binance WebSocket...");
+        let live_client = live_data::LiveDataClient::new(tx.clone());
+        live_client.start_binance_streams().await;
+        
+        // Still use simulated system metrics
+        live_data::start_system_metrics_stream(tx.clone());
+        
+        println!("✅ Live data streams started! Connect to ws://127.0.0.1:3000/ws");
+    } else {
+        println!("🤖 Starting SIMULATED data streams (use_live_data={})...", use_live_data);
+        
+        // ========== Realistic high-frequency simulated data streams ==========
+        // We'll simulate 3 concurrent streams that fire at high rates to stress the frontend
+
+        // Stream 1: Market price ticks (20-60 Hz) - simulates real-time price updates
     #[derive(Serialize)]
     struct PriceTick {
         #[serde(rename = "type")] t: &'static str,
@@ -184,11 +203,15 @@ async fn main() {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });
+        
+        println!("✅ Simulated data streams started!");
+    }
 
     let state = AppState {
         leptos_options: leptos_options.clone(),
         tx,
         sleep_ms,
+        use_live_data,
     };
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(App);

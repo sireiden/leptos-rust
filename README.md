@@ -1,11 +1,6 @@
-<picture>
-    <source srcset="https://raw.githubusercontent.com/leptos-rs/leptos/main/docs/logos/Leptos_logo_Solid_White.svg" media="(prefers-color-scheme: dark)">
-    <img src="https://raw.githubusercontent.com/leptos-rs/leptos/main/docs/logos/Leptos_logo_RGB.svg" alt="Leptos Logo">
-</picture>
+# 🚀 Leptos Real-Time Market Data System
 
-# Leptos Axum Starter Template
-
-This is a template for use with the [Leptos](https://github.com/leptos-rs/leptos) web framework and the [cargo-leptos](https://github.com/leptos-rs/cargo-leptos) tool using [Axum](https://github.com/tokio-rs/axum).
+Ein hochperformantes **Real-Time Data Streaming System** mit Rust, Leptos und WebSockets. Demonstriert Live-Marktdaten-Streaming, Frontend-Performance-Optimierung und Real-Time-Visualisierung.
 
 ## Creating your template repo
 

@@ -1,110 +1,312 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📦 IMPORTS - Alle externen Libraries die wir brauchen
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 🚀 LEPTOS FEATURE: Core Framework
+// Das "prelude::*" importiert alle wichtigsten Leptos-Funktionen
+// Ähnlich wie "import React from 'react'" in JavaScript
 use leptos::prelude::*;
+
+// 🏷️ LEPTOS FEATURE: Meta Tags & SEO 
+// Tools um <title>, <meta> Tags etc. zu verwalten (wichtig für SEO)
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
+
+// 🧭 LEPTOS FEATURE: Client-Side Routing
+// Ermöglicht mehrere "Seiten" ohne Server-Requests (wie React Router)
 use leptos_router::{
     components::{Route, Router, Routes},
     StaticSegment,
 };
+
+// 🔧 RUST FEATURE: Conditional Compilation
+// #[cfg(feature = "hydrate")] bedeutet: "Nur kompilieren wenn im Browser"
+// Diese Imports funktionieren NUR im Browser, nicht auf dem Server
+
+// 📡 RUST FEATURE: JSON Handling (nur im Browser)
 #[cfg(feature = "hydrate")]
 use serde::Deserialize;
+
+// 🌐 WASM FEATURE: JavaScript Interop (nur im Browser) 
 #[cfg(feature = "hydrate")]
 use wasm_bindgen::JsCast;
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏠 HTML SHELL - Das "Grundgerüst" der Webseite
+// ═══════════════════════════════════════════════════════════════════════════════
+// 
+// Diese Funktion erstellt das HTML-Grundgerüst. Läuft nur auf dem SERVER!
+// Vergleichbar mit index.html in normalen Web-Apps
+
+// 🔧 RUST FEATURE: Function Definition
+// "pub" = öffentlich, "fn" = function, "-> impl IntoView" = Rückgabe-Typ
 pub fn shell(options: LeptosOptions) -> impl IntoView {
+    
+    // 🎨 LEPTOS FEATURE: view! Macro  
+    // Das ist Leptos' "JSX" - HTML direkt in Rust schreiben!
+    // Wird zur Compile-Zeit in echten Rust-Code umgewandelt
     view! {
+        // 📄 Standard HTML5 Deklaration
         <!DOCTYPE html>
         <html lang="en">
             <head>
+                // 🌐 UTF-8 Encoding für internationale Zeichen
                 <meta charset="utf-8"/>
+                // 📱 Responsive Design für Handy-Bildschirme  
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                
+                // 🔄 LEPTOS FEATURE: Auto-Reload (nur in Development)
+                // Lädt die Seite automatisch neu wenn du Code änderst
                 <AutoReload options=options.clone()/>
+                
+                // ⚡ LEPTOS FEATURE: Hydration Scripts
+                // JavaScript Code der die statische HTML zu reaktiver App macht
                 <HydrationScripts options/>
+                
+                // 🏷️ LEPTOS FEATURE: Meta Tags Container
+                // Hier können Components <title> und <meta> Tags einfügen
                 <MetaTags/>
             </head>
             <body>
+                // 🚀 UNSERE HAUPT-APP! 
+                // Das <App/> wird durch unsere reaktive Leptos-App ersetzt
                 <App/>
             </body>
         </html>
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🚀 HAUPT-COMPONENT - Unsere komplette App!
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 🧩 LEPTOS FEATURE: Component Definition  
+// #[component] ist ein Leptos-Macro das diese Funktion zur React-ähnlichen Component macht
 #[component]
 pub fn App() -> impl IntoView {
-    // Provides context that manages stylesheets, titles, meta tags, etc.
+    
+    // 🏷️ LEPTOS FEATURE: Meta Context
+    // Ermöglicht Components das Setzen von <title> und <meta> tags
     provide_meta_context();
     
-    // Reactive state for market data streams
-    let prices = RwSignal::new(std::collections::HashMap::<String, Vec<f64>>::new()); // symbol -> prices
-    let trades = RwSignal::new(Vec::<(String, f64, String)>::new()); // (symbol, price, side) last 100
-    let book_depth = RwSignal::new(std::collections::HashMap::<String, (Vec<f64>, Vec<f64>)>::new()); // symbol -> (bids, asks)
-    let msg_rate = RwSignal::new(Vec::<u64>::new()); // messages/sec
-    let latency_values = RwSignal::new(Vec::<f64>::new()); // ms
-    let fps_values = RwSignal::new(Vec::<f64>::new()); // frames/sec
-    let sample_max = RwSignal::new(200usize);
-    let msg_count = RwSignal::new(0u64); // total messages received
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 📊 REACTIVE STATE - Das "Gehirn" unserer App
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 
+    // LEPTOS FEATURE: RwSignal = "Read-Write Signal" 
+    // Das ist wie "useState" in React - automatische UI-Updates bei Änderungen!
     
-    // Start websocket only on client/hydrated side
+    // 💰 Marktpreise: Symbol → Liste der letzten Preise
+    // RUST TYPE: HashMap<String, Vec<f64>> = Map von Text zu Zahlen-Liste
+    let prices = RwSignal::new(std::collections::HashMap::<String, Vec<f64>>::new());
+    
+    // 📈 Trade-History: Liste der letzten 100 Trades  
+    // RUST TYPE: Vec<(String, f64, String)> = Liste von (Symbol, Preis, Seite)
+    let trades = RwSignal::new(Vec::<(String, f64, String)>::new());
+    
+    // 📖 Orderbook-Daten: Symbol → (Bid-Preise, Ask-Preise)
+    // RUST TYPE: HashMap<String, (Vec<f64>, Vec<f64>)> = Map zu Tupel von Listen
+    let book_depth = RwSignal::new(std::collections::HashMap::<String, (Vec<f64>, Vec<f64>)>::new());
+    
+    // 📊 Performance Metriken für Live-Monitoring:
+    let msg_rate = RwSignal::new(Vec::<f64>::new());        // Momentane Messages pro Sekunde (CLIENT-SEITIG!)
+    let latency_values = RwSignal::new(Vec::<f64>::new());  // Latenz in Millisekunden  
+    let fps_values = RwSignal::new(Vec::<f64>::new());      // Frames pro Sekunde
+    let sample_max = RwSignal::new(200usize);               // Maximale Chart-Datenpunkte
+    let msg_count = RwSignal::new(0u64);                    // Message Counter für aktuelle Sekunde
+    let msg_rate_timer = RwSignal::new(0.0);                // Timer für Rate-Berechnung
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🌐 WEBSOCKET CONNECTION - Live-Daten vom Server  
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    // 🔄 LEPTOS FEATURE: Effect (Side Effect Management)
+    // Läuft automatisch wenn die App startet - wie useEffect() in React  
+    // "move |_|" ist RUST Syntax für "Closure die Ownership übernimmt"
     Effect::new(move |_| {
+        
+        // 🔧 RUST FEATURE: Conditional Compilation
+        // Dieser Code läuft NUR im Browser, NICHT auf dem Server!
         #[cfg(feature = "hydrate")]
         {
-            use web_sys::{MessageEvent, WebSocket};
-            use wasm_bindgen::closure::Closure;
-            use wasm_bindgen::JsCast;
+            // 📦 WASM IMPORTS: Browser APIs nur hier importieren
+            use web_sys::{MessageEvent, WebSocket};    // Browser WebSocket API
+            use wasm_bindgen::closure::Closure;        // JavaScript Callbacks  
+            use wasm_bindgen::JsCast;                  // Type Casting für WASM
+            // 🚀 Nur einmal verbinden (wenn noch keine Daten da sind)
             if prices.read().is_empty() {
+                
+                // 🌐 BROWSER API: Window-Objekt holen
                 let window = web_sys::window().expect("window");
                 let location = window.location();
+                
+                // 📍 AUTOMATISCHE SERVER-ERKENNUNG: Host von aktueller URL holen
+                // Fallback zu localhost:3000 falls es nicht funktioniert  
                 let host = location.host().unwrap_or_else(|_| "127.0.0.1:3000".into());
+                
+                // 🔒 PROTOKOLL-ERKENNUNG: wss für HTTPS, ws für HTTP
                 let protocol = location
                     .protocol()
                     .ok()
-                    .filter(|p| p.starts_with("https"))
-                    .map(|_| "wss")
-                    .unwrap_or("ws");
+                    .filter(|p| p.starts_with("https"))  // Ist es HTTPS?
+                    .map(|_| "wss")                      // Dann sicherer WebSocket
+                    .unwrap_or("ws");                    // Sonst normaler WebSocket
+                    
+                // 🔗 WebSocket URL zusammenbauen: "ws://127.0.0.1:3000/ws"  
                 let ws_url = format!("{}://{}/ws", protocol, host);
+                
+                // 📡 WEBSOCKET VERBINDUNG aufbauen
                 if let Ok(ws) = WebSocket::new(&ws_url) {
-                    // save websocket on window so event handlers (view closures) can access it
+                    
+                    // 💾 TRICK: WebSocket im Browser-Window speichern
+                    // Warum? Damit andere Funktionen (z.B. Button-Clicks) darauf zugreifen können!
                     if let Some(win) = web_sys::window() {
-                        let _ = js_sys::Reflect::set(win.as_ref(), &js_sys::JsString::from("__leptos_ws"), ws.as_ref());
+                        let _ = js_sys::Reflect::set(
+                            win.as_ref(), 
+                            &js_sys::JsString::from("__leptos_ws"), 
+                            ws.as_ref()
+                        );
                     }
+                    // ═══════════════════════════════════════════════════════════════════════
+                    // 📨 MESSAGE TYPES - Welche Daten können vom Server kommen?
+                    // ═══════════════════════════════════════════════════════════════════════
+                    
+                    // 🔧 RUST FEATURE: Derive Macros
+                    // #[derive(Deserialize)] = "Automatisch JSON → Rust Struct konvertieren"
                     #[derive(Deserialize)]
+                    
+                    // 📡 SERDE FEATURE: Tagged Union  
+                    // #[serde(tag = "type")] bedeutet: JSON hat "type" field das bestimmt welcher Typ
+                    // Beispiel: {"type": "price", "symbol": "BTC", "price": 50000}
                     #[serde(tag = "type")]
                     enum Msg {
-                        #[serde(rename = "price")] Price { symbol: String, price: f64, volume: u64, ts: i64 },
-                        #[serde(rename = "trade")] Trade { symbol: String, price: f64, size: f64, side: String, ts: i64 },
-                        #[serde(rename = "book")] Book { symbol: String, bids: Vec<(f64, f64)>, asks: Vec<(f64, f64)>, ts: i64 },
-                        #[serde(rename = "system")] System { cpu_pct: f64, mem_mb: u64, msg_rate: u64, ts: i64 },
+                        // 💰 PREIS-UPDATE: Neuer Marktpreis für ein Symbol
+                        #[serde(rename = "price")] 
+                        Price { 
+                            symbol: String,   // "BTCUSD"
+                            price: f64,       // 50000.50  
+                            volume: u64,      // Handelsvolumen
+                            ts: i64           // Timestamp 
+                        },
+                        
+                        // 🔄 TRADE-EXECUTION: Ein Handel wurde ausgeführt
+                        #[serde(rename = "trade")] 
+                        Trade { 
+                            symbol: String,   // "BTCUSD"
+                            price: f64,       // Ausführungspreis
+                            size: f64,        // Handelsgröße
+                            side: String,     // "buy" oder "sell"
+                            ts: i64 
+                        },
+                        
+                        // 📖 ORDERBOOK: Aktuelle Bid/Ask Preise
+                        #[serde(rename = "book")] 
+                        Book { 
+                            symbol: String,
+                            bids: Vec<(f64, f64)>,  // Kaufangebote: (Preis, Menge)
+                            asks: Vec<(f64, f64)>,  // Verkaufsangebote: (Preis, Menge)
+                            ts: i64 
+                        },
+                        
+                        // 🖥️ SYSTEM-METRIKEN: Server Performance Info
+                        #[serde(rename = "system")] 
+                        System { 
+                            cpu_pct: f64,     // CPU Auslastung %
+                            mem_mb: u64,      // RAM Verbrauch MB
+                            msg_rate: u64,    // Messages pro Sekunde  
+                            ts: i64 
+                        },
+                        
+                        // 🤷 FALLBACK: Unbekannte Message-Typen ignorieren
                         #[serde(other)] Other,
                     }
+                    // ═══════════════════════════════════════════════════════════════════════
+                    // 📡 MESSAGE HANDLER - Was passiert bei neuen Server-Nachrichten?
+                    // ═══════════════════════════════════════════════════════════════════════
+                    
+                    // 🔧 WASM FEATURE: Closure (JavaScript Callback in Rust)
+                    // Das ist kompliziert! Rust-Funktionen können nicht direkt als JS-Callbacks 
+                    // verwendet werden. Closure::wrap() macht die Konvertierung.
                     let onmessage = Closure::wrap(Box::new({
-                        let prices = prices.clone();
+                        
+                        // 🔄 RUST FEATURE: Clone für Move-Closure  
+                        // Wir müssen alle RwSignals "clonen" damit sie in die Closure "moved" werden können
+                        // .clone() bei RwSignal kopiert nur den Pointer, nicht die Daten!
+                        let prices = prices.clone();           
                         let trades = trades.clone();
                         let book_depth = book_depth.clone();
                         let msg_rate_sig = msg_rate.clone();
                         let latency_values = latency_values.clone();
                         let msg_count = msg_count.clone();
+                        let msg_rate_timer = msg_rate_timer.clone();
+                        let sample_max = sample_max.clone();
+                        
+                        // 🚀 CALLBACK FUNCTION: Wird bei jeder WebSocket-Message aufgerufen
+                        // |e: MessageEvent| ist die Rust-Syntax für JavaScript-Callbacks
                         move |e: MessageEvent| {
+                            
+                            // ⏱️ PERFORMANCE MONITORING: Empfangszeit messen
                             let t_recv = web_sys::window().unwrap().performance().unwrap().now();
+                            
+                            // 📊 MESSAGE COUNTER: Anzahl empfangener Nachrichten erhöhen
                             msg_count.update(|c| *c += 1);
+                            
+                            // 🔄 MOMENTANE MESSAGE RATE BERECHNUNG (Client-seitig!)
+                            let last_time = *msg_rate_timer.read();
+                            if last_time == 0.0 {
+                                *msg_rate_timer.write() = t_recv;
+                            } else if t_recv - last_time >= 1000.0 {
+                                let current_rate = *msg_count.read() as f64 * 1000.0 / (t_recv - last_time);
+                                msg_rate_sig.update(|v| {
+                                    v.push(current_rate);
+                                    let cap = *sample_max.read();
+                                    let extra = v.len().saturating_sub(cap);
+                                    if extra > 0 { v.drain(0..extra); }
+                                });
+                                *msg_count.write() = 0;
+                                *msg_rate_timer.write() = t_recv;
+                            }
+                            // 📄 JSON PARSING: WebSocket-Message zu Rust-Struct konvertieren
                             if let Some(txt) = e.data().as_string() {
+                                // 🔧 SERDE FEATURE: JSON String → Msg Enum  
                                 if let Ok(msg) = serde_json::from_str::<Msg>(&txt) {
+                                    
+                                    // 🔀 RUST FEATURE: Pattern Matching
+                                    // Wie switch/case aber viel mächtiger! Jeder Message-Typ bekommt eigene Behandlung
                                     match msg {
+                                        
+                                        // 💰 PREIS-UPDATE verarbeiten
                                         Msg::Price { symbol, price, .. } => {
+                                            // 🔄 LEPTOS FEATURE: Signal Update
+                                            // prices.update() triggert automatisch UI-Neuzeichnung!
                                             prices.update(|map| {
+                                                // 📊 RUST FEATURE: HashMap Entry API
                                                 let entry = map.entry(symbol).or_insert_with(Vec::new);
-                                                entry.push(price);
+                                                entry.push(price);  // Neuen Preis hinzufügen
+                                                
+                                                // 🧹 MEMORY MANAGEMENT: Alte Daten löschen (Performance!)
                                                 let cap = *sample_max.read();
-                                                if entry.len() > cap { entry.drain(0..entry.len() - cap); }
+                                                if entry.len() > cap { 
+                                                    entry.drain(0..entry.len() - cap); 
+                                                }
                                             });
-                                            // measure latency until next paint
+                                            
+                                            // ⏱️ LATENCY MEASUREMENT: Wie schnell wird UI aktualisiert?
                                             let latency_values = latency_values.clone();
+                                            
+                                            // 🖼️ BROWSER API: requestAnimationFrame für präzise Latenz-Messung
+                                            // Misst Zeit von "Daten empfangen" bis "UI gezeichnet"
                                             let cb = Closure::wrap(Box::new(move |_: f64| {
                                                 let t_paint = web_sys::window().unwrap().performance().unwrap().now();
-                                                let dt = t_paint - t_recv;
+                                                let dt = t_paint - t_recv;  // Latenz berechnen
+                                                
+                                                // 📊 Latenz-Wert speichern für Charts
                                                 let mut lv = latency_values.write();
                                                 lv.push(dt);
                                                 let cap = *sample_max.read();
                                                 let extra = lv.len().saturating_sub(cap);
                                                 if extra > 0 { lv.drain(0..extra); }
                                             }) as Box<dyn FnMut(f64)>);
+                                            
                                             let _ = web_sys::window().unwrap().request_animation_frame(cb.as_ref().unchecked_ref());
                                             cb.forget();
                                         }
@@ -121,12 +323,8 @@ pub fn App() -> impl IntoView {
                                                 map.insert(symbol, (bid_prices, ask_prices));
                                             });
                                         }
-                                        Msg::System { msg_rate: rate, .. } => {
-                                            msg_rate_sig.update(|v| {
-                                                v.push(rate);
-                                                let cap = *sample_max.read();
-                                                if v.len() > cap { v.drain(0..v.len() - cap); }
-                                            });
+                                        Msg::System { .. } => {
+                                            // System-Messages ignorieren - wir berechnen Rate client-seitig!
                                         }
                                         Msg::Other => {}
                                     }
@@ -318,16 +516,30 @@ pub fn App() -> impl IntoView {
                     <h2>"⚡ Performance Metrics"</h2>
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
                         <div style="border:1px solid #ddd;padding:0.5rem;border-radius:4px;">
-                            <h3 style="margin:0 0 0.5rem 0;font-size:1rem;">"Message Rate (msg/s)"</h3>
-                            <p style="margin:0;font-size:1.5rem;font-weight:bold;">
-                                {move || msg_rate.read().last().cloned().unwrap_or(0)}
+                            <h3 style="margin:0 0 0.5rem 0;font-size:1rem;">"💬 Momentane Message Rate (msg/s)"</h3>
+                            <p style="margin:0;font-size:1.5rem;font-weight:bold;color:#9933ff;">
+                                {move || {
+                                    let current = msg_rate.read().last().cloned().unwrap_or(0.0);
+                                    format!("{:.1}", current)
+                                }}
                             </p>
+                            <div style="font-size:0.75rem;color:#666;margin-top:0.25rem;">
+                                {move || {
+                                    let rates = msg_rate.read();
+                                    if rates.len() >= 2 {
+                                        let current = rates.last().cloned().unwrap_or(0.0);
+                                        let previous = rates[rates.len()-2];
+                                        let change = current - previous;
+                                        let trend = if change > 0.5 { "📈" } else if change < -0.5 { "📉" } else { "➡️" };
+                                        format!("{} {:.1} vs vorige Sekunde", trend, change)
+                                    } else {
+                                        "Warte auf Daten...".to_string()
+                                    }
+                                }}
+                            </div>
                             <svg width="100%" height="60" viewBox="0 0 300 60" style="margin-top:0.5rem;">
                                 <polyline stroke="#9933ff" fill="none" stroke-width="2"
-                                    points={move || {
-                                        let data: Vec<f64> = msg_rate.read().iter().map(|&x| x as f64).collect();
-                                        sparkline_points(&data, 300.0, 60.0)
-                                    }} />
+                                    points={move || sparkline_points(&msg_rate.read(), 300.0, 60.0)} />
                             </svg>
                         </div>
                         <div style="border:1px solid #ddd;padding:0.5rem;border-radius:4px;">
@@ -410,6 +622,7 @@ pub fn App() -> impl IntoView {
                                 fps_values.write().clear();
                                 latency_values.write().clear();
                                 *msg_count.write() = 0;
+                                *msg_rate_timer.write() = 0.0;  // ← TIMER auch resetten!
                             }>
                             "Reset All Metrics"
                         </button>
