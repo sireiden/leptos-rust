@@ -194,8 +194,8 @@ pub struct SharedMemoryHeader {
     pub magic: u32,                 // Validation
     pub version: u32,
     pub total_size: u64,
-    pub write_offset: u64,          // Circular buffer write position
-    pub read_offset: u64,           // Circular buffer read position  
+    pub write_offset: u64,
+    pub read_offset: u64,
     pub measurement_count: u32,
     pub sample_rate: u32,
 }
